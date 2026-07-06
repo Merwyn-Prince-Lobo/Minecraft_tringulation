@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Triangulator</title>
+<style>
+  :root{
+    --void: #111214;
+    --void-2: #17181b;
+    --panel: #1b1c1f;
+    --line: #2c2d31;
+    --accent: #d8d9dc;
+    --accent-dim: #3a3b3f;
+    --text: #d8d9dc;
+    --muted: #8a8b8f;
+    --warn: #d97a6c;
+    --good: #7fae8f;
+    --mono: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+    --serif: Georgia, 'Iowan Old Style', serif;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    min-height:100vh;
+    background: var(--void);
+    color: var(--text);
+    font-family: var(--mono);
+    padding: 40px 20px 80px;
+  }
+  .wrap{ max-width: 760px; margin: 0 auto; }
+
+  header{ margin-bottom: 32px; }
+  .eyebrow{
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 10px;
+  }
+  h1{
+    font-family: var(--mono);
+    font-size: 24px; font-weight: 600; margin: 0 0 8px;
+    color: var(--text);
+    letter-spacing: 0;
+  }
+  .sub{ color: var(--muted); font-size: 13.5px; line-height: 1.6; max-width: 56ch; }
+
+  .card{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px 22px 20px;
+    margin-bottom: 18px;
+    position: relative;
+  }
+  .card-label{
+    position:absolute; top:-10px; left: 16px;
+    background: var(--void-2);
+    border:1px solid var(--line);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 10.5px; letter-spacing: 0.12em;
+    color: var(--accent);
+  }
+  textarea{
+    width:100%; min-height: 64px;
+    background: var(--void-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    padding: 12px 14px;
+    resize: vertical;
+    outline: none;
+    transition: border-color .15s;
+  }
+  textarea:focus{ border-color: var(--accent); }
+  textarea::placeholder{ color: var(--muted); }
+
+  .status{
+    margin-top: 8px;
+    font-size: 11.5px;
+    min-height: 16px;
+    color: var(--muted);
+  }
+  .status.ok{ color: var(--good); }
+  .status.err{ color: var(--warn); }
+
+  .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 620px){ .grid2{ grid-template-columns: 1fr; } }
+
+  .result{
+    background: var(--void-2);
+    border: 1px solid var(--accent-dim);
+    border-radius: 10px;
+    padding: 24px;
+    display:none;
+  }
+  .result.show{ display:block; }
+
+  .result-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom: 18px; flex-wrap: wrap; gap: 8px;
+  }
+  .result-head h2{
+    font-family: var(--mono); font-weight:600; font-size: 15px; margin:0; color:var(--text);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .confidence{ font-size: 11px; color:var(--muted); }
+
+  .coord-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+    gap: 12px;
+  }
+  .coord-row:first-of-type{ border-top:none; }
+  .coord-meta{ min-width: 0; }
+  .coord-title{ font-size: 12.5px; color: var(--accent); letter-spacing:0.04em; }
+  .coord-desc{ font-size: 11px; color:var(--muted); margin-top:2px; }
+  .coord-val{
+    font-size: 14.5px; color:var(--text); white-space:nowrap;
+    background:#0d0815; padding:6px 10px; border-radius:6px; border:1px solid var(--line);
+  }
+  button.copy{
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 7px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s, transform .1s;
+  }
+  button.copy:hover{ background: var(--accent); }
+  button.copy:active{ transform: scale(0.96); }
+  button.copy.copied{ background: var(--good); border-color: var(--good); color: var(--void); }
+
+  .disclaimer{
+    margin-top: 22px; font-size: 11px; color:var(--muted); line-height:1.6;
+    border-top: 1px dashed var(--line); padding-top: 14px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Two-Point Sighting</div>
+    <h1>Triangulator</h1>
+    <div class="sub">Paste two raw <code>/execute … tp @s</code> lines from two different sighting spots. It solves where the two facing-angles cross — a rough fix, not a pin.</div>
+  </header>
+
+  <div class="card">
+    <div class="card-label">POINT 1</div>
+    <textarea id="p1" placeholder="/execute in minecraft:the_end run tp @s 47.70 62.00 24.83 46.96 29.67"></textarea>
+    <div class="status" id="s1">waiting for input</div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">POINT 2</div>
+    <textarea id="p2" placeholder="/execute in minecraft:overworld run tp @s -12.30 70.00 88.10 -63.40 12.00"></textarea>
+    <div class="status" id="s2">waiting for input</div>
+  </div>
+
+  <div class="result" id="result">
+    <div class="result-head">
+      <h2>Estimated crossing</h2>
+      <div class="confidence" id="confidence"></div>
+    </div>
+
+    <div class="coord-row">
+      <div class="coord-meta">
+        <div class="coord-title">RAW CROSSING (as sighted)</div>
+        <div class="coord-desc" id="rawDimNote">same block-grid as your two points</div>
+      </div>
+      <div class="coord-val" id="rawVal">—</div>
+      <button class="copy" data-copy="rawCmd">copy tp</button>
+    </div>
+
+    <div class="coord-row">
+      <div class="coord-meta">
+        <div class="coord-title">OVERWORLD equivalent</div>
+        <div class="coord-desc">×8 if your points were Nether coords, 1:1 otherwise</div>
+      </div>
+      <div class="coord-val" id="owVal">—</div>
+      <button class="copy" data-copy="owCmd">copy tp</button>
+    </div>
+
+    <div class="coord-row">
+      <div class="coord-meta">
+        <div class="coord-title">NETHER-highway equivalent</div>
+        <div class="coord-desc">÷8, for a fast portal run toward it</div>
+      </div>
+      <div class="coord-val" id="netherVal">—</div>
+      <button class="copy" data-copy="netherCmd">copy tp</button>
+    </div>
+
+    <div class="disclaimer">
+      This is two lines of sight crossing, nothing more — expect it to land within a rough radius of the real target, not on top of it. Wider angle between your two throws and a longer baseline between the two spots both tighten it up. If the numbers below flash red, your two angles were too close to parallel to trust.
+    </div>
+  </div>
+
+</div>
+
+<script>
+const p1 = document.getElementById('p1');
+const p2 = document.getElementById('p2');
+const s1 = document.getElementById('s1');
+const s2 = document.getElementById('s2');
+const result = document.getElementById('result');
+const confidence = document.getElementById('confidence');
+
+const cmds = {}; // store generated command strings for copy buttons
+
+function parseLine(text){
+  text = text.trim();
+  if(!text) return null;
+  // find dimension
+  let dim = 'overworld';
+  const dimMatch = text.match(/minecraft:(\w+)/i);
+  if(dimMatch) dim = dimMatch[1].toLowerCase();
+
+  // pull the 5 numbers after "tp @s" if present, else last 5 numbers in the string
+  let nums;
+  const afterTp = text.match(/tp\s+@s\s+([\-\d.\s]+)/i);
+  if(afterTp){
+    nums = afterTp[1].trim().split(/\s+/).map(Number);
+  } else {
+    const all = text.match(/-?\d+\.?\d*/g);
+    if(!all || all.length < 5) return null;
+    nums = all.slice(-5).map(Number);
+  }
+  if(nums.length < 5 || nums.some(n => Number.isNaN(n))) return null;
+
+  const [x,y,z,yaw,pitch] = nums;
+  return { dim, x, y, z, yaw, pitch };
+}
+
+function dirFromYaw(yawDeg){
+  const r = yawDeg * Math.PI / 180;
+  return { dx: -Math.sin(r), dz: Math.cos(r) };
+}
+
+function setStatus(el, msg, cls){
+  el.textContent = msg;
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+function fmt(n){ return Math.round(n * 10) / 10; }
+
+function buildTpCmd(dim, x, y, z, yaw, pitch){
+  return `/execute in minecraft:${dim} run tp @s ${fmt(x)} ${fmt(y)} ${fmt(z)} ${fmt(yaw)} ${fmt(pitch)}`;
+}
+
+function recompute(){
+  const a = parseLine(p1.value);
+  const b = parseLine(p2.value);
+
+  if(!p1.value.trim()) setStatus(s1, 'waiting for input');
+  else setStatus(s1, a ? `parsed: ${a.dim} · x${a.x} z${a.z} · yaw ${a.yaw}°` : "couldn't find 5 numbers in there", a ? 'ok' : 'err');
+
+  if(!p2.value.trim()) setStatus(s2, 'waiting for input');
+  else setStatus(s2, b ? `parsed: ${b.dim} · x${b.x} z${b.z} · yaw ${b.yaw}°` : "couldn't find 5 numbers in there", b ? 'ok' : 'err');
+
+  if(!a || !b){
+    result.classList.remove('show');
+    return;
+  }
+
+  const d1 = dirFromYaw(a.yaw);
+  const d2 = dirFromYaw(b.yaw);
+
+  const denom = d1.dx * d2.dz - d1.dz * d2.dx;
+
+  if(Math.abs(denom) < 1e-4){
+    result.classList.add('show');
+    confidence.textContent = 'lines nearly parallel — unreliable';
+    confidence.style.color = 'var(--warn)';
+    document.getElementById('rawVal').textContent = 'no solid crossing';
+    document.getElementById('owVal').textContent = '—';
+    document.getElementById('netherVal').textContent = '—';
+    return;
+  }
+
+  const t1 = ((b.x - a.x) * d2.dz - (b.z - a.z) * d2.dx) / denom;
+  const cx = a.x + t1 * d1.dx;
+  const cz = a.z + t1 * d1.dz;
+  const cy = (a.y + b.y) / 2;
+
+  // confidence heuristic from angle between the two sightlines
+  const dot = d1.dx*d2.dx + d1.dz*d2.dz;
+  const angleDeg = Math.acos(Math.max(-1, Math.min(1, dot))) * 180 / Math.PI;
+  let confText, confColor;
+  if(angleDeg < 8 || angleDeg > 172){ confText = 'low confidence — throw from a more different angle'; confColor = 'var(--warn)'; }
+  else if(angleDeg < 20 || angleDeg > 160){ confText = 'moderate confidence'; confColor = '#b0b1b5'; }
+  else { confText = 'decent crossing angle'; confColor = 'var(--good)'; }
+
+  result.classList.add('show');
+  confidence.textContent = confText;
+  confidence.style.color = confColor;
+
+  // raw, in the dimension of point 1
+  const rawDim = a.dim;
+  document.getElementById('rawVal').textContent = `${fmt(cx)}, ${fmt(cy)}, ${fmt(cz)}  (${rawDim})`;
+  document.getElementById('rawDimNote').textContent = `same grid as point 1 (${rawDim})`;
+  cmds.rawCmd = buildTpCmd(rawDim, cx, cy, cz, 0, 0);
+
+  // overworld equivalent
+  const owScale = rawDim.includes('nether') ? 8 : 1;
+  const owx = cx * owScale, owz = cz * owScale;
+  document.getElementById('owVal').textContent = `${fmt(owx)}, ${fmt(cy)}, ${fmt(owz)}`;
+  cmds.owCmd = buildTpCmd('overworld', owx, cy, owz, 0, 0);
+
+  // nether highway equivalent (from the overworld-equivalent coords)
+  const nx = owx / 8, nz = owz / 8;
+  document.getElementById('netherVal').textContent = `${fmt(nx)}, ${fmt(cy)}, ${fmt(nz)}`;
+  cmds.netherCmd = buildTpCmd('the_nether', nx, cy, nz, 0, 0);
+}
+
+p1.addEventListener('input', recompute);
+p2.addEventListener('input', recompute);
+
+document.querySelectorAll('button.copy').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const key = btn.dataset.copy;
+    const text = cmds[key];
+    if(!text) return;
+    try{
+      await navigator.clipboard.writeText(text);
+      const original = btn.textContent;
+      btn.textContent = 'copied';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1200);
+    }catch(e){
+      btn.textContent = 'select & copy manually';
+    }
+  });
+});
+</script>
+</body>
+</html>
